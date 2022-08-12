@@ -20,14 +20,11 @@ import Pkg; Pkg.add("Plots")
 # ╔═╡ b8e6ab2c-1be5-4524-8504-265d8462bc2a
 Pkg.add("LaTeXStrings")
 
+# ╔═╡ 56e55984-9a63-40cf-97d3-1c76f870fe57
+Pkg.add("PlutoUI")
+
 # ╔═╡ da36fef5-42f1-4a70-943c-e2b292456565
 Pkg.add("Measures")
-
-# ╔═╡ 9ba0b30f-8fdb-49a3-a179-53f7bfe03a62
-Pkg.add("PlutoUI")
-
-# ╔═╡ f7a7df1b-d246-4cd5-ac46-7eee94c78037
-Pkg.add("PlutoUI")
 
 # ╔═╡ 43619fa2-ea61-419d-b86e-c673301bc685
 using Plots
@@ -38,15 +35,45 @@ using Statistics
 # ╔═╡ cbdeb143-b778-4b32-9434-bb630bd891d5
 using LaTeXStrings
 
+# ╔═╡ 91880772-db1d-4f7f-a32b-9e6f34b5ce88
+using PlutoUI
+
 # ╔═╡ d428d47b-e171-479c-8d88-e18a4ab51ccd
 using Measures
 
-# ╔═╡ d1fd22e3-93ba-4483-ad90-00389fe747db
-using PlutoUI
+# ╔═╡ edadadec-a987-4661-add6-f0094bb9934c
+include("utils.jl")
 
 # ╔═╡ ab9b01ff-c53f-40d6-817e-07e837762cfb
 md"""
-The aim of this notebook is to illustrate the effect of adding dimensions to a loss landscape for learning performance. We will consider quadratic functions and to start with going from a 1D to 2D quadratic function"""
+The aim of this notebook is to illustrate the effect of adding parameters to a loss landscape for learning performance. We will consider the expanding quadratic functions. 
+
+In particular, we consider going from a 1D quadratic function $f(x)=x^2$ to an N-dimensional quadratic function. 
+If $f$ is the loss function for training a network with a single parameter $w$ , how does the loss function change if we add a second parameter to the network?
+
+
+The network expansion leads to a new loss function in N-dimensional space $\mathbb{R}^N$. The exact form of this loss function is determined by the network architecture and the nature of the learning problem –-how the loss function is defined.
+
+Abstractly, there are infinitely many quadratic N-dim functions. However, there will generally be constrains on the possible N-dim functions that can arise from a network expansion.
+
+Assume that the N-dim function $f_N$ satisfies: (1) $f_N$ is quadratic adn (2) $f_N$ has the same average curvature as the 1D function. (i.e. it the average eigenvalue of the Hessian of the N-dim and 1D function are equal) 
+
+To illustrate how a network expansion can help or hurt learnign, we consider two different types of quadratic functions $f_N$ that satisfy both of these constraints.
+
+- **Single non-zero eigenvalue of the hessian:** the first type of function is given by  
+$f_{N1}:\mathbb{R}^N\to\mathbb{R}$ with 
+
+$$f_{N1}(\mathbf{w}) =  \frac{\rho N}{2} w_1^2$$
+
+where $\mathbf{w}w = (w_1,w_2,\cdots,w_N)^T\in \mathbb{R}^N$.  
+
+- **All equal eigenvalues:** the second type of function is 
+$f_{N2}:\mathbb{R}^N\to\mathbb{R}$ with 
+
+$$f_{N2}(\mathbf{w}) =  \frac{\rho}{2} ||\mathbf{w}||^2 = \frac{\rho}{2} (w_1^2+w_2^2+\cdots+w_N^2)$$ 
+
+where $\mathbf{w} = (w_1,w_2,\cdots,w_N)^T\in \mathbb{R}^N$.  
+"""
 
 # ╔═╡ 7c5a27bc-2da7-4a4e-a957-7dbc80e0e556
 Plots.default(titlefont = (20, "times"), legendfontsize = 18, guidefont = (18, :black), tickfont = (12, :black), grid=false, guide = "x", framestyle = :zerolines, yminorgrid = false, markersize=6)
@@ -70,230 +97,47 @@ begin
 	eig1 = [2]
 end
 
-# ╔═╡ edadadec-a987-4661-add6-f0094bb9934c
-function quadraticN_Zero(N,Tr_N)
-	# generate a N-dim quad function with one 
-	# non-zero eig such that Tr(H)/N = Tr_N
-	# return function computing the value 
-	# derivative and eigenvalues
-	eig = Tr_N*N # non-zero eig 
-	eigs = zeros(N)
-	eigs[1] = eig
-	f(w) = eig/2*w[1]^2
-	df(w) = eigs.*w
-	return f, df, eigs
-end
-
-# ╔═╡ 766b31e0-ecf8-4d01-9a8e-f1bf3d03efd7
-function quadraticN_NonZero(N,Tr_N)
-	# generate a N-dim quad function with  
-	# all eq eig such that Tr(H)/N = Tr_N
-	# return function computing the value 
-	# derivative and eigenvalues
-	eig = Tr_N # non-zero eig 
-	eigs = eig*ones(N)
-	f(w) = sum(w.^2 .*eig/2)
-	df(w) = eigs.*w
-	return f, df, eigs
-end
-
-# ╔═╡ 0e1a0954-c70d-473d-8cf4-7c07449befbf
-function gradDescent(f,df,mu,w0,epochs=1)
-	W = zeros(epochs,length(w0))
-	F = zeros(epochs)
-	w=w0
-	for i=1:epochs
-		W[i,:] = w
-		F[i] = f(w)
-		w = w -mu*df(w)
-	end
-	return F,W
-end
-
-# ╔═╡ 7ed096fa-fe5b-400e-af6a-45fb34c1226a
-function gradDescentNoise(f,df,mu,w0,epochs=1,gamma=0,Wset=false)
-	W = zeros(epochs,length(w0))
-	dF = zeros(epochs,length(w0))
-	grad = zeros(epochs)
-	N = zeros(epochs,length(w0))
-	F = zeros(epochs)
-	w=w0
-	for i=1:epochs
-		W[i,:] = w
-		F[i] = f(w)
-		grad[i] = sqrt(sum(df(w).^2))
-		dF[i,:] = df(w)
-		N[i,:] = randn(length(w))
-		if Wset==false
-			w = w -mu*dF[i,:] + gamma*N[i,:]
-		else
-			w = Wset[i,:]
-		end
-	end
-	return F,W,dF,N,grad
-end
-
-# ╔═╡ 18251608-65c1-414c-a9cd-734916c4b200
-function ls(F,l=10)
-	dF = (F[2:l+1]-F[1:l])
-	return mean(-dF)
-end
-
-# ╔═╡ bfb47a2e-592d-433f-b701-685af896d659
-function ss(F,l=20)
-	return mean(F[end-l:end])
-end
-
-# ╔═╡ 831e1216-f083-4994-9934-254a480a2aef
-function plotLsSS(Fs,xlbl,t,Fss=false)
-	lsA = [ls(i) for i in Fs]
-	if Fss==false
-		ssA = [ss(i) for i in Fs]
-	else
-		ssA = [ss(i) for i in Fss]
-	end
-	lsP = plot(xlbl,lsA,lw=3,ylabel="learning speed",title=t)
-	ssP = plot(xlbl,ssA,lw=3, ylabel="ss value")
-	plot(lsP, ssP, layout = (2, 1), legend = false)
-	# plot!(title=t)
-end
-
-# ╔═╡ 54b4f704-1bc2-40d0-9c25-af7e2440d401
-function computeHessianProj(dW,eig)
-	# compute hessian projection of normalized dW given eig the eigenvalues of hess
-	P = zeros(size(dW,1))
-	for i=1:size(dW,1)
-		P[i] = sum(dW[i,:].^2 .*eig)/sum(dW[i,:].^2)
-	end
-	return P
-end
-
-# ╔═╡ 5dbdd7b7-0075-4e97-8e71-fa7d8371e5fc
-function TrH_N(eig)
-	return sum(eig)/length(eig)
-end
-
-# ╔═╡ ca0b97fe-d673-490a-b5cc-f940fe79100c
-function TrH3_TrH2(eig)
-	return sum(eig.^3)/sum(eig.^2)
-end
-
-# ╔═╡ 39fd38b7-097f-4693-a8e8-aa5a8613abbc
-function sim(f,df,mu,w0,epochs,gamma,lls=10,lss=200,w0ss=0.00001)
-	# train
-	if gamma==0
-		F,W = gradDescent(f,df,mu,w0,epochs)
-	else
-		F,W,dF,N,grad=gradDescentNoise(f,df,mu,w0,epochs,gamma)
-		Dls = Dict(:F => F, :W => W, :dF => dF, :Noise => N, :grad => grad)
-	end
-	# get ls 
-	ls1 = ls(F,lls)
-	# train again for ss
-	w0ssV = w0ss*ones(length(w0)) #point close to minimum 0
-	FSS,WSS,dFSS,NSS,gradSS=gradDescentNoise(f,df,mu,w0ssV,epochs,gamma)
-	Dss = Dict(:F => FSS, :W => WSS, :dF => dFSS, :Noise => NSS, :grad => gradSS)
-	ss1 = ss(FSS,lss)
-	return ls1 ,ss1, Dls, Dss
-end
-
-# ╔═╡ 2e288a30-0ac6-4a3e-8eb4-b3e7cc737cf2
-function simulateN(Ns,quadF,Tr_N,w0,musVar,SNR,epochs,analyseF=false,args=[])
-	val = map(1:length(Ns)) do i
-		N = Ns[i]
-		f,df,eigs = quadF(N,Tr_N)
-		w0V = (w0/sqrt(N))*ones(N) # scale the initial weight to match initial val
-		map(musVar[i]) do mu
-			gamma = mu/SNR
-			sim(f,df,mu,w0V,epochs,gamma) # get learning parameters
-		end
-	end
-	if analyseF == false
-		return val
-	else
-		return analyseF(val,args...)
-	end
-end
-
-# ╔═╡ 6256c83c-2ee5-4b0e-865a-186649b1bbda
-function scatterPlot(indeces,ssS,lsS)
-	namedColors = ["Blues","Oranges","Greens","Purples","Reds","Grays"]
-	# namedColors = Plots.palette(:inferno, 8)
-	p = scatter(ssS[indeces[1]],lsS[indeces[1]], c=colormap(namedColors[1], length(ssS[indeces[1]])+2)[3:end], label=string("N = ",indeces[1]))
-	for j in 2:length(indeces)
-		itr = indeces[j]
-		scatter!(ssS[itr],lsS[itr],c=colormap(namedColors[j],length(ssS[itr])+2)[3:end], label="N = $itr")
-	end
-	plot!(xlabel="steady state value",ylabel="learning speed")
-	return p
-end
-
-# ╔═╡ 979f4a5f-12cd-4d5b-91dc-e26ef174ad6b
-function swapOrder(v)
-	vv = zeros(length(v[1]))
-	for j in 1:length(v[1])
-		vv[j] = [v[i][j] for i=1:length(v)]
-	end
-	return vv
-end
-
-# ╔═╡ 70018fc9-d67a-4fc0-a902-b3c4ff4ecd25
-function getVal(v,i,sym=false)
-	map(v) do vv
-		map(vv) do vvv
-			if sym == false
-				vvv[i]
-			else
-				vvv[i][sym]
-			end
-		end
-	end
-end
-
-# ╔═╡ 8b0bb7b7-c45e-483a-bcf0-46cc3d0db07d
-function getLs_SS(vals_zero,args=[])
-	lsS = getVal(vals_zero,1)
-	ssS = getVal(vals_zero,2)
-	return lsS,ssS
-end
-
-# ╔═╡ c9b98516-2620-4c81-8b3e-11f69feb5b62
-function my_std(ls)
-    numSim = length(ls)
-    lsM = hcat(ls...)
-    map(1:size(lsM,1)) do m
-        std(lsM[m,:])./numSim
-    end
-end
-
 # ╔═╡ fc03f090-0912-4875-a2a8-f663620d26d6
-md"# Gradient descent"
+md"## Gradient descent with noise
+It is implausible that biological neural networks learn with pure gradient descent. Indeed, computing gradients can be difficult (credit assignement problem) and applying exact change in weigths with biological components in sysnapses is inherently noisy. 
+
+We consider a more general learning rule: gradient descent with noise 
+
+$$\delta w_t = -\mu \nabla_{w} F[w_t] + \gamma \epsilon$$ 
+
+where $$\epsilon$$ is the noise term (usually drawn from a random normal distribution).
+
+We run gradient descent with noise on the functions defined as explained above for different dimensions Ns. 
+
+We train with gradient descent for a range of $\mu$. $\gamma$ is chosen to satisfy  a constant ratio $SNR=\frac{\mu}{\gamma}$ accross dimensions and $\mu$.
+The range of $\mu$ used varies for the different $N$. Indeed the norm of the gradient $||\nabla F||$ grows with $N$. Hence for the same $\mu$, learning will be much faster for a larger $N$. Furthermore, for larger Ns training will diverge for smaller $\mu$.
+To make a 'fair' comparison of learning we decrease the range of $\mu$ tested with the number of dimensions $N$. 
+
+We compute learning speed and steady state loss for the range N and $\mu$. Learning speed is computed from the trajectory of the loss during training with initial weight 
+$$\mathbf{w} = \frac{w0}{\sqrt{N}} (1, 1, ... ,1)^T$$, with $w0>1$ This choice of initial weight guarantees the initial value of the loss is equal for all dimensions.
+
+The steady state is computed from loss trajectory starting at the point $w = w_{ss}(1, 1,..., 1)^T$ with $w_{ss}$ very close to 0. Initialising very close to the local minimum allows for training to reach the steady state value without having to train for a very large (and unknown) number of epochs. 
+"
 
 # ╔═╡ 230d6234-ce7e-41ea-9f24-fc2d5be65e1c
 begin
-	epochs=400;
-	Ns = 1:1:100;
-	mus=collect(0.001:0.005:0.1);
-	Tr_N=3;
-	SNR=5;
-	w0 = 5;
-	musVar = [mus./N^1 for N in Ns]
-	musC =  [mus for N in Ns]
-	sims = 1
-	# musVar = [mus for N in Ns]
+	epochs=400; # number of epochs
+	Ns = 1:1:100; # number of weights to test
+	mus=collect(0.001:0.005:0.1); # learning step range
+	Tr_N=2; # constant value of trace/N
+	SNR=2; # signal to noise ratio mu/gamma
+	w0 = 5; # initial weight for training (1D case)
+	musVar = [mus./N^1 for N in Ns] # vary range of mus to test as a function of N (to account for increase in gradient norm as N increases)
+	musC =  [mus for N in Ns] # constant mus
+	sims = 3 # number of simulations 
 end
-
-# ╔═╡ b6eacae8-902d-46ad-8c21-916c3aef7776
-mus
-
-# ╔═╡ 8ed79bf6-adff-41ed-83b3-5a5921b2526e
-p = Plots.palette(:inferno, 20)
 
 # ╔═╡ 665e6a7a-0aa6-4e15-8e76-90d81167a4fd
 begin
-	lblN = string.(L"N=",Ns)
+	# labels for plotting
+	lblN = string.(L"N=",Ns) 
 	lblN = reshape(lblN,(1,length(lblN)))
-		lblMuV = map(1:length(Ns)) do i
+	lblMuV = map(1:length(Ns)) do i
 		string.(L"\gamma=",round.(musVar[i],digits=4))
 	end
 	lblMu = string.(L"\gamma=",mus)
@@ -301,7 +145,16 @@ begin
 	# lblMu = reshape(lblMu,(1,length(lblN)))
 end
 
+# ╔═╡ 473e8dc7-730a-4674-9879-bb48b783e3e0
+md"### Single non-zero eigenvalue
+Consider  the first type of function
+
+$$f_{N1}(\mathbf{w}) =  \frac{\rho N}{2} w_1^2$$
+with $\rho$ the value of the average eigenvalue set above by `Tr_N`
+"
+
 # ╔═╡ c11ab6c9-c799-405d-b76b-0b194e22990f
+# compute learning speed and steady state loss for all Ns and all musVar
 ls_ssAll = map(1:sims) do i
 	simulateN(Ns,quadraticN_Zero,Tr_N,w0,musVar,SNR,epochs,getLs_SS)
 end
@@ -315,38 +168,63 @@ begin
 		l[2]
 	end
 	lsAllM = mean(lsAll)
-	lsAllStd = my_std(lsAll)
 	ssAllM = mean(ssAll)
-	ssALlStd = my_std(ssAll)
+	if sims>1
+		lsAllStd = my_std(lsAll)
+		ssALlStd = my_std(ssAll)
+	end
 end
+
+# ╔═╡ acbc5a4b-36df-4580-a178-ec3467391eb6
+md"First we plot the loss during training
+We can vary N and $\mu$ with the slider
+" 
+
+# ╔═╡ bc611e16-be4a-4671-a05e-e9c61fb4fe56
+md"Slider for N"
+
+# ╔═╡ 26f62803-5633-4dc8-9ca1-893dd008fa2d
+@bind Nind Slider(1:length(Ns))
+
+# ╔═╡ e3118f1b-d009-43f3-afd3-b10b8abb7d97
+md"Slider for $\mu$"
+
+# ╔═╡ 35b434db-9acf-4a1c-b133-8315a9964587
+@bind muInd Slider(1:10)
+
+# ╔═╡ a82f460d-a3ab-44f6-8e94-48b6ab923af4
+begin
+	N = Ns[Nind]
+	f,df,eigs = quadraticN_Zero(N,Tr_N)
+	w0V = (w0/sqrt(N))*ones(N) # scale the initial weight to match initial val
+	# mu = musVar[Nind][muInd]
+	# musL=collect(0.00001:0.005:0.1); # learning step range
+	mu = mus[muInd]
+	gamma = mu/SNR
+	lsVal,ssVal,lsD,ssD=sim(f,df,mu,w0V,100,gamma,10,10)
+	plot(lsD[:F],lw=3,xlabel="epochs",ylabel="loss",label=string(lblN[1,Nind], " ,", lblMuV[Nind][muInd]))
+end
+
+# ╔═╡ c73230f6-3cb1-4813-aa30-0b93506f2162
+md" We observe that as we increase $\mu$ for fixed $N$, the loss decreases faster. Increasing $N$ for a fixed $\mu$ can have the same effect. As expected for larger $N$, training will diverge for a smaller $\mu$.
+
+We now look at the learning speed and steady state loss for different $N$ and $\mu$. "
 
 # ╔═╡ 14d09075-61fd-4c93-a75f-d3ba99e82f70
 begin
 	int = 1:5:length(Ns)
-	plot(musVar[int],lsAllM[int],lw=3,xlabel="learning step", ylabel="learning speed",label=lblN[:,int],palette=p)
-end
-
-# ╔═╡ 4173bd81-a370-4936-87e4-c3ce5f2205f9
-begin
-	N = Ns[10]
-	f,df,eigs = quadraticN_Zero(N,Tr_N)
-	w0V = (w0/sqrt(N))*ones(N) # scale the initial weight to match initial val
-	mu = musVar[10][end]
-	gamma = mu/SNR
-	lsVal,ssVal,lsD,ssD=sim(f,df,mu,w0V,50,gamma,10,10)
-	plot(lsD[:F],lw=3)
+	plot(musVar[int],lsAllM[int],lw=3,xlabel=L"\mu", ylabel="learning speed",label=lblN[:,int],palette=p)
 end
 
 # ╔═╡ aaf2e829-4232-453a-914b-6c628406fc98
 begin
-	plot(musVar[int],ssAllM[int],lw=3,xlabel="learning step", ylabel="steady state value",label=lblN[:,int],palette=p)
+	plot(musVar[int],ssAllM[int],lw=3,xlabel=L"\mu", ylabel="steady state value",label=lblN[:,int],palette=p)
 end
 
-# ╔═╡ 5b738eb7-ae34-41a7-81bc-00738f3a6ebf
-begin
-	indeces = [5,10,30,100]
-	scatterPlot(indeces,ssAllM,lsAllM)
-end
+# ╔═╡ cf9a8bdb-8788-4381-b847-27feb326c9a6
+md"We observe that for any $N$, increasing $\mu$ (while keeping small enough to assure learning convergence) increases learning speed and steady state loss. There is a trade-off between learning speed and accuracy (steady state value). 
+
+Furthermore, the learning speed increase saturates. We can compute the optimal learning speed for each $N$, over all $\mu$. "
 
 # ╔═╡ 927847fb-8ecf-4248-a131-32dc4f845779
 begin
@@ -360,6 +238,13 @@ end
 # ╔═╡ a5fe4cfb-9a8c-4c15-8f00-f0d6242874b9
 plot(Ns,lsMax,lw=3,xlabel="N",ylabel="Max learning speed",legend=false)
 
+# ╔═╡ 70f57b49-2705-41d1-8a09-595785c05459
+md"The optimal learning speed is equal for all $N$. If we increase the number of parameters $N$, we can always find a $\mu$ such that the learning speed matches the original function-with fewer parameters.
+
+What about the steady state loss? From the plot above, we see that the minimal steady state loss will be achieved for the smallest $\mu$. We expect the minimal ss value over all $\mu$ to be relatively similar accross $N$.  
+However, what about the steady state loss for the $\mu$ that gives optimal learning speed? 
+"
+
 # ╔═╡ b8d10a77-6392-46c4-9513-3cdbf6cc07b9
 begin
 	p1=plot(Ns, ssMin , lw=3, xlabel="N", ylabel="ss value", label="min")
@@ -367,24 +252,37 @@ begin
 	plot(p1,p2,layout=(2,1))
 end
 
+# ╔═╡ 13fb87f1-c65e-4319-a31e-2131c21d8597
+md" The steady state loss for the $\mu$ that leads to maximal learnign speed, decreases with $N$. We can plot the steady state value vs the learning speed as we vary $\mu$.
+Each color represents a different $N$ and the opacity represents the value of $\mu$. $\mu$ increases with the opacity. 
+"
+
+# ╔═╡ 1de8b3ca-5796-4f5d-8245-61c7a28d958d
+begin
+	indeces = [5,10,30,100]
+	scatterPlot(indeces,ssAllM,lsAllM)
+end
+
+# ╔═╡ 6fb78ef1-c54d-4256-ae7c-2ad76f0f7906
+md" 
+We observe that for each $N$, increasing $\mu$ increases both learning speed and steady state value. 
+However, for larger $N$, the steady state value increases slower with $\mu$. 
+Adding parameters allows for better learning performance. We can always find a $\mu$ for which the learning is faster (or same) and more precise (larger learning speed and smaller steady state loss).
+"
+
 # ╔═╡ f551874c-8033-48c4-b20d-787072dd92ef
-md"## Non-zero eigenvalue"
+md"## Non-zero eigenvalues
+Consider the second type of function, with all equal eigenvalues (i.e. no zero eigenvalues)
+
+$$f_{N2}(\mathbf{w}) =  \frac{\rho}{2} ||\mathbf{w}||^2 = \frac{\rho}{2} (w_1^2+w_2^2+\cdots+w_N^2)$$ 
+
+We do the same plots as above
+"
 
 # ╔═╡ acae4567-5a77-439b-be3b-ab422c47a1e5
 ls_ssAllN = map(1:sims) do i
 	simulateN(Ns,quadraticN_NonZero,Tr_N,w0,musC,SNR,epochs,getLs_SS)
 end
-
-# ╔═╡ 97ebb932-6ff2-46f1-84da-26affa0dd5d9
-# vals_Nzero = map(1:length(Ns)) do i
-# 	N = Ns[i]
-# 	f,df,eigs = quadraticN_NonZero(N,Tr_N)
-# 	w0V = (w0/sqrt(N))*ones(N) # scale the initial weight to match initial val
-# 	map(mus) do mu # use same ls for all nets because no problem of scaling
-# 		gamma = mu/SNR
-# 		sim(f,df,mu,w0V,epochs,gamma)
-# 	end
-# end
 
 # ╔═╡ e26d05aa-1d5e-47af-9285-a35afb616e45
 begin
@@ -395,21 +293,20 @@ begin
 		l[2]
 	end
 	lsAllNM = mean(lsAllN)
-	lsAllNStd = my_std(lsAllN)
 	ssAllNM = mean(ssAllN)
-	ssALlNStd = my_std(ssAllN)
+	if sims>1
+		lsAllNStd = my_std(lsAllN)
+		ssALlNStd = my_std(ssAllN)
+	end
 end
 
 # ╔═╡ b1aedaf9-8b55-4583-b6a8-f688019a9021
-plot(mus,lsAllNM,lw=3,xlabel="learning step", ylabel="learning speed",label=lblN,palette=p)
+plot(mus,lsAllNM,lw=3,xlabel=L"\mu", ylabel="learning speed",label=lblN,palette=p)
 
 # ╔═╡ b08bd2de-0222-4413-a03b-aa8fa256b926
 begin
-	plot(mus,ssAllNM[int],lw=3,xlabel="learning step", ylabel="steady state value",label=lblN[:,int],palette=p)
+	plot(mus,ssAllNM[int],lw=3,xlabel=L"\mu", ylabel="steady state value",label=lblN[:,int],palette=p)
 end
-
-# ╔═╡ 62ebb223-130e-4c22-a967-dab914374dd6
-scatterPlot(indeces,ssAllNM,lsAllNM)
 
 # ╔═╡ 8bbf893d-5f3e-491c-8723-52e605af7322
 begin
@@ -430,9 +327,22 @@ begin
 	plot(p1N,p2N,layout=(2,1))
 end
 
+# ╔═╡ 9f210dcf-eb0c-4088-b5e5-f0a6610f54d9
+scatterPlot(indeces,ssAllNM,lsAllNM)
+
 # ╔═╡ 9b2e008e-2243-4fc8-81c4-29f5f31d70c9
 md"""
-We have done gradient descent on the three different functions starting at the same value. We observe that the 2D with one zero eigenvalue has larger learning speed. We expected this because the gradient of this function is larger. The steady state loss is the same because in all cases gradient descent reaches the minimum $0$."""
+For this type of function, increasing $N$ is not beneficial to learning. 
+As in the previous case, for any fixed $N$ there is a trade-off between learning speed and steady state loss as $\mu$ varies. 
+
+The difference is that in this case, for larger $N$, the steady state value gets works. The slope of the steady state loss vs $\mu$ line increases with $N$.
+
+The scatter plot in this case, is the opposite as before. Indicating, that the larger $N$ is the worse the learning speed to steady state value is. 
+
+We have considered two different types of quadratic functions. For each type, adding parameters has the opposite effect. 
+
+How does adding parameters in one case increase learning performance with gradient descent with noise? 
+"""
 
 # ╔═╡ 51995ba1-8ac3-444c-be53-95212904347c
 md""" ## Comparison figures"""
@@ -449,12 +359,6 @@ begin
 	pssN = plot(mus,ssAllNM[int],lw=3,xlabel="learning step", ylabel="",label=lblN[:,int],palette=p)
 	# plot!(title="1 non-zero eig")
 	plot!(legend=false)
-	# psp=scatterPlot(indeces,ssAllM,lsAllM)
-	# plot!(legend=false)
-	# pspN=scatterPlot(indeces,ssAllNM,lsAllNM)
-	# plot!(legend=false)
-	# pLP= plot(pls,plsN,pss,pssN,psp,pspN, layout=(3,2), size = (width, height+400))
-	# savefig("./Figures/lp_sim_all2.pdf")
 	pLP= plot(pls,plsN,pss,pssN, layout=(2,2), size = (width, height))
 	savefig("./Figures/lp_sim_all.pdf")
 	pLP
@@ -485,110 +389,22 @@ md"""
 We now evaluate our theoretical measures of learning speed and steady-state loss to understand the results above."""
 
 # ╔═╡ 248290dc-d84c-4f1a-9959-c95888c48d5c
-md" # Theoretical analysis"
+md"## Theoretical analysis"
 
 # ╔═╡ ad5b0b3f-f423-4d43-8d3e-b861de19904e
-md"""The expected learning speed over teh dirstribution of $\mathbf{\epsilon}$ is 
-$$\mathbb{E}[\nu_t] = -\frac{1}{F_t\delta t} (-\gamma ||\nabla F||^2+\gamma^2\nabla F^T\nabla^2F\nabla F+\mathbb{E}[\eta^2 \epsilon^T \nabla^2 F \epsilon])$$"""
+md"""
+From previous work we defined two quantities that determine learning speed and steady state loss when optimsing $F$ with gradient descent with noise with parameters $\mu$ and $\gamma$.  
 
-# ╔═╡ cf9bea4e-f659-46c6-861b-42c1476bb3df
-function learningSpeed(F,mu,dF,grad,gamma,Noise,eig,dt=1)
-	val= -1 ./(F.*dt).*(-mu.*grad.^2 .+ mu^2 .*grad.^2 .*computeHessianProj(dF,eig) .+gamma^2 .*sum(Noise.^2 ;dims=2).*computeHessianProj(Noise,eig))
-	return val[:,1]
-end
+The expected learning speed over the dirstribution of $\mathbf{\epsilon}$ is 
 
-# ╔═╡ 7f202ff4-0342-4e62-a57f-ec2f702db5d3
-function learningSpeed(dict,mu,gamma,eig,dt=1)
-	learningSpeed(dict[:F],mu,dict[:dF],dict[:grad],gamma,dict[:Noise],eig,dt)
-end
+$$\mathbb{E}[\nu_t] = -\frac{1}{F_t\delta t} (-\mu ||\nabla F||^2+\mu^2\nabla F^T\nabla^2F\nabla F+\mathbb{E}[\gamma^2 \epsilon^T \nabla^2 F \epsilon])$$
 
-# ╔═╡ 5266893d-fb62-40df-a90d-c84a08ecdfbe
-md"""The expected local task difficulty over  dirstribution of $\mathbf{\epsilon}$ is 
-$$\mathbb{E}[\nu_t] = \gamma \hat{\nabla F}^T\nabla^2F\hat{\nabla F}+\mathbb{E}[\frac{\eta^2}{\gamma} \frac{1}{||\nabla F||^2} \epsilon^T \nabla^2 F \epsilon])$$"""
+The expected local task difficulty over  dirstribution of $\mathbf{\epsilon}$ is 
 
-# ╔═╡ edb982ce-9b84-4d61-bdc2-fb0794db7ae4
-function localTask(dF,N,eig,grad,mu,gamma)
-	# val= mu*computeHessianProj(dF,eig)+gamma^2/mu.*(sum(N.^2; dims=2)./grad.^2).*computeHessianProj(N,eig)
-	val= mu*computeHessianProj(dF,eig)+gamma^2/mu.*(sum(N.^2; dims=2)./grad.^2).*computeHessianProj(N,eig).*grad.^2
-	return val[:,1]
-	# 1/2*computeHessianProj(dW21NSet.+N21Set,eig21).*(sum((dW21NSet.+N21Set).^2;dims=2).*grad21NSet.^2)
-	# return 1/2*computeHessianProj(dW,eig).*(dW.^2 ./grad.^2) + 1/2*computeHessianProj(N,eig).*(N.^2 ./grad.^2)
-end
-
-# ╔═╡ 4e95640a-9111-43fc-b4c0-b7bae236f020
-function localTask(dict,eig,mu,gamma)
-	localTask(dict[:dF],dict[:Noise],eig,dict[:grad],mu,gamma)
-end
-
-# ╔═╡ 82119ec9-bc81-467d-a5d8-97165f525fbe
-function getLpVar(vals_Nzero,Ns,quadF,mus,SNR,index=false)
-	lp = map(1:length(vals_Nzero)) do i
-		N = Ns[i]
-		f,df,eigs = quadF(N,Tr_N)
-		# w0V = (w0/sqrt(N))*ones(N) # scale the initial weight to match initial val
-		map(1:length(vals_Nzero[i])) do j
-			mu = mus[j]
-			gamma = mu/SNR
-			dict = vals_Nzero[i][j][3]
-			dictSS = vals_Nzero[i][j][4]
-			lsTheory = learningSpeed(dict,mu,gamma,eigs)
-			ltTheory = localTask(dictSS,eigs,mu,gamma)
-			if index==false
-				return lsTheory, ltTheory
-			else 
-				return lsTheory[index], ltTheory[index]
-			end
-		end
-	end
-	return lp
-end
-
-# ╔═╡ 64feb896-d966-492d-9acf-020b32da2c54
-function plotLs(ls,Ns,mus,epoch,inds,xlbl,ylbl,lbl,dims=1)
-	p = Plots.palette(:inferno, length(inds)+2)
-	if dims==1 # plot with dims 1 as x axis
-		y = map(inds) do j
-				map(1:length(ls)) do i
-					ls[i][j][epoch]
-				end
-		end	
-		return plot(Ns,y,lw=3,xlabel=xlbl,ylabel=ylbl,label=lbl[:,inds],palette=p)
-	elseif dims==2
-		y = map(inds) do j
-				map(1:length(mus)) do i
-					ls[j][i][epoch]
-				end
-		end	
-		return plot(mus,y,lw=3,xlabel=xlbl,ylabel=ylbl,label=lbl[:,inds],palette=p)
-	end
-end
-
+$$\mathbb{E}[\nu_t] = \mu \hat{\nabla F}^T\nabla^2F\hat{\nabla F}+\mathbb{E}[\frac{\gamma^2}{\mu} \frac{1}{||\nabla F||^2} \epsilon^T \nabla^2 F \epsilon])$$"""
 
 # ╔═╡ 28832ed8-3269-4391-b000-7b7538c3a1aa
-md"## Zero eigenvalues"
-
-# ╔═╡ d7b7e609-4058-4535-9824-1097e8ef2af3
-md"### Learning speed"
-
-# ╔═╡ 58506658-4ef1-43e0-b3cb-a19808bf1315
-# lp_zero = getLpVar(vals_zero,Ns,quadraticN_Zero,musVar,SNR)
-
-# ╔═╡ db584b37-1aa3-48ea-ac4f-2c309cbe5d84
-# begin
-# 	lsTheory = getVal(lp_zero,1)
-# 	ltTheory = getVal(lp_zero,2)
-# end
-
-# ╔═╡ fabfe05d-062e-4f13-a429-af8264090995
-# begin 
-# 	intmus = 1:5
-# 	plot(1:epochs,lsTheory[1][intmus],lw=3,xlabel="epoch", ylabel="learning speed theory",label=lblMuT[:,intmus])
-# end
-
-# ╔═╡ e3b2da8f-ed0b-455b-a80e-ce2b2716c309
-# begin 
-# 	plot(1:epochs,ltTheory[10][1:3],lw=3,xlabel="epoch", ylabel="local task diff",label=lblMuT[:,1:3])
-# end
+md"## Single non-zero eigenvalue"
 
 # ╔═╡ c273ae38-c4e9-492a-b502-c092f0b6b1c9
 simsT = 10
@@ -620,17 +436,11 @@ begin
 	lblMuT = reshape(lblMuT,(1,length(lblMuT)))
 end
 
-# ╔═╡ 354e3fcc-6d2f-4306-8aa7-2c15c20d1de0
-lp_zeroAll[1][1][1]
-
 # ╔═╡ 2c10f156-9f86-4246-8f74-27adc0879641
 begin
 	lsTAll = [getVal(lp_zeroAll[i],1) for i=1:length(lp_zeroAll)]
 	ltAll = [getVal(lp_zeroAll[i],2) for i=1:length(lp_zeroAll)]
 end
-
-# ╔═╡ 6e0edaa8-0681-4cc9-a114-07ba0b54bf9f
-ltAll
 
 # ╔═╡ 318c76c9-7502-4f2e-8ea7-bc94687028fb
 begin 
@@ -651,6 +461,9 @@ plotLs(lsTAllM,Ns,musT[1],1,[1,10,20,30,40,50,60,70,80,90,100],"learning step","
 # ╔═╡ 0188d095-a88a-4129-8bc6-f3128bcecd26
 # plot learning speed from theoretical value vs N
 plotLs(lsTAllM,Ns,musT[1],1,[1,10,15],"N","learning speed theory",lblMuT,1)
+
+# ╔═╡ 6cfe38f4-0d1f-48f8-b236-982585109c04
+
 
 # ╔═╡ 3ef486bc-c0e3-460e-83c6-85456966dd9e
 @bind muIndex Slider(1:length(musT[1]))
@@ -783,160 +596,79 @@ begin
 	pTheoryAllN
 end
 
-# ╔═╡ e1094e57-7ec5-4c73-86dd-7696db75ce81
-md"""## Optimal values over learning step"""
-
-# ╔═╡ 622b6b8a-3817-4019-aee8-fba6f0890656
-function optimalMu(trH_N,w0,N,SNR,quadCase=1)
-	if quadCase == 1
-		return (trH_N*w0^2)/(2*(w0^2*trH_N^2*N-1/SNR^2))
-	elseif quadCase== 2
-		return (trH_N*w0^2)/(2*(w0^2*trH_N^2-N/SNR^2))
-	end
-end
-
-# ╔═╡ 5e6b7221-3c6c-483e-aa8b-b04f0b998106
-muOpt = [optimalMu(Tr_N,w0,N,SNR,1) for N in Ns]
-
-# ╔═╡ ef002880-d873-43be-a4ec-7a84cfbbc6f3
-begin
-	NInt2=[40,50,60,70,80,90,100]
-	plotLs(lsTAllM,Ns,musT[1],1,NInt2,"","ls \n theory",lblN,2)
-	plot!(title="1 non-zero",legend=false)
-	plot!(muOpt[NInt2],seriestype=:vline,lw=3,linecolor = 1:length(NInt2),linestyle=:dash,palette=Plots.palette(:inferno, length(NInt2)+2))
-end
-
-# ╔═╡ 3fbfd4fd-c280-45b1-aca7-2a8477c4216a
-muOpt[NInt2]
-
-# ╔═╡ a9f9ed0d-1102-4df9-904d-b2233f6f3eb3
-Plots.palette(:inferno, length(NInt2)+2)[5]
-
-# ╔═╡ cad45de9-2b4d-4a74-ae62-413a9d1f29dd
-md" # Hessian Projection"
-
-# ╔═╡ 80e35cb1-64c4-45c2-ae62-f881432b28c3
-function plotHessProj(dW,eig,t)
-	# plot hessian proj of dW and traces
-	dwHdw = computeHessianProj(dW,eig)
-	plot(dwHdw,lw=3,label="proj")
-	plot!([TrH3_TrH2(eig)], seriestype=:hline,lw=3, label="TrH^3/TrH^2", linestyle=:dash)
-	plot!([TrH_N(eig)],seriestype=:hline,lw=3,label="TrH/N",linestyle=:dash)
-	plot!(title=t)
-end
-
-# ╔═╡ da129ba2-55cf-4097-8322-5ddea094aba7
-function plotHessianParam(eigs,t="")
-	TrH3s = [TrH3_TrH2(eig) for eig in eigs]
-	TrHs = [TrH_N(eig) for eig in eigs]
-	plot(["1D","2D zero eig","2d non-zero eig"],TrH3s,seriestype=:bar,ylabel="Trace terms",title=t,label="TrH3_TrH2",bar_position=:dodge)
-	plot!(["1D","2D zero eig","2d non-zero eig"],TrHs,seriestype=:bar,ylabel="Trace terms",title=t,label="TrH_N",bar_position=:dodge)
-	# ssP = plot(["1D","2D zero eig","2d non-zero eig"],ssA, seriestype=:bar, ylabel="ss value")
-	# plot(lsP, ssP, layout = (2, 1), legend = false)
-	# plot!(title=t)
-end
-
-# ╔═╡ 59bcc767-65c9-4400-90a5-28f86c8243a4
-md"## Test near steady state"
-
 # ╔═╡ b2fc0546-046b-443a-9736-5b9fe6e30bc0
 md"""
 We have shown how a network expansion can increase learning speed and steady-state value. Furthermore, we have compared two different expansions. One expansion doesn't increase learning performance. The difference is in the change in loss landscape. 
 Both expansions maintain the average curvature. However, one expansion adds a zero eigenvalue whereas the other adds an eigenvalue with same value as the original one.
-
-The only issue is that we can't quite recover the result that the local task difficulty predicts steady-state value. If it were so we would expect the local task diff of the expanded net with the zero eigenvalue to have the smallest local task difficulty. It is not the case.
-
-How can we predict or measure the expected steady state value as a measure of the loss landscape alone?
 """
 
 
 # ╔═╡ Cell order:
 # ╠═fb54ebe4-0f2d-4cae-9b73-93f03a08b391
 # ╠═b8e6ab2c-1be5-4524-8504-265d8462bc2a
+# ╠═56e55984-9a63-40cf-97d3-1c76f870fe57
 # ╟─ab9b01ff-c53f-40d6-817e-07e837762cfb
 # ╠═43619fa2-ea61-419d-b86e-c673301bc685
 # ╠═0d17a04e-0334-4ff1-8c9b-bad141346414
 # ╠═cbdeb143-b778-4b32-9434-bb630bd891d5
+# ╠═91880772-db1d-4f7f-a32b-9e6f34b5ce88
 # ╠═7c5a27bc-2da7-4a4e-a957-7dbc80e0e556
 # ╠═2b7d5e2d-3b9b-42dc-bc08-3fd5106b7ebe
 # ╟─38125f75-7244-4526-9a37-9bd1af217e72
 # ╠═cea61646-34cf-42b4-acf8-2226fde52146
 # ╠═247f31f4-dc34-11ec-0584-752289f2b41d
 # ╠═edadadec-a987-4661-add6-f0094bb9934c
-# ╠═766b31e0-ecf8-4d01-9a8e-f1bf3d03efd7
-# ╠═0e1a0954-c70d-473d-8cf4-7c07449befbf
-# ╠═7ed096fa-fe5b-400e-af6a-45fb34c1226a
-# ╠═18251608-65c1-414c-a9cd-734916c4b200
-# ╠═bfb47a2e-592d-433f-b701-685af896d659
-# ╠═831e1216-f083-4994-9934-254a480a2aef
-# ╠═54b4f704-1bc2-40d0-9c25-af7e2440d401
-# ╠═5dbdd7b7-0075-4e97-8e71-fa7d8371e5fc
-# ╠═ca0b97fe-d673-490a-b5cc-f940fe79100c
-# ╠═39fd38b7-097f-4693-a8e8-aa5a8613abbc
-# ╠═2e288a30-0ac6-4a3e-8eb4-b3e7cc737cf2
-# ╠═8b0bb7b7-c45e-483a-bcf0-46cc3d0db07d
-# ╠═6256c83c-2ee5-4b0e-865a-186649b1bbda
-# ╠═979f4a5f-12cd-4d5b-91dc-e26ef174ad6b
-# ╠═70018fc9-d67a-4fc0-a902-b3c4ff4ecd25
-# ╠═c9b98516-2620-4c81-8b3e-11f69feb5b62
 # ╟─fc03f090-0912-4875-a2a8-f663620d26d6
 # ╠═230d6234-ce7e-41ea-9f24-fc2d5be65e1c
-# ╠═b6eacae8-902d-46ad-8c21-916c3aef7776
-# ╠═8ed79bf6-adff-41ed-83b3-5a5921b2526e
 # ╠═665e6a7a-0aa6-4e15-8e76-90d81167a4fd
+# ╟─473e8dc7-730a-4674-9879-bb48b783e3e0
 # ╠═c11ab6c9-c799-405d-b76b-0b194e22990f
 # ╠═2c3cdc13-dce0-4c43-8eaa-53ca08551e8e
+# ╠═acbc5a4b-36df-4580-a178-ec3467391eb6
+# ╟─bc611e16-be4a-4671-a05e-e9c61fb4fe56
+# ╠═26f62803-5633-4dc8-9ca1-893dd008fa2d
+# ╟─e3118f1b-d009-43f3-afd3-b10b8abb7d97
+# ╠═35b434db-9acf-4a1c-b133-8315a9964587
+# ╠═a82f460d-a3ab-44f6-8e94-48b6ab923af4
+# ╟─c73230f6-3cb1-4813-aa30-0b93506f2162
 # ╠═14d09075-61fd-4c93-a75f-d3ba99e82f70
-# ╠═4173bd81-a370-4936-87e4-c3ce5f2205f9
 # ╠═aaf2e829-4232-453a-914b-6c628406fc98
-# ╠═5b738eb7-ae34-41a7-81bc-00738f3a6ebf
+# ╟─cf9a8bdb-8788-4381-b847-27feb326c9a6
 # ╠═927847fb-8ecf-4248-a131-32dc4f845779
 # ╠═a5fe4cfb-9a8c-4c15-8f00-f0d6242874b9
+# ╟─70f57b49-2705-41d1-8a09-595785c05459
 # ╠═b8d10a77-6392-46c4-9513-3cdbf6cc07b9
-# ╠═f551874c-8033-48c4-b20d-787072dd92ef
+# ╠═13fb87f1-c65e-4319-a31e-2131c21d8597
+# ╠═1de8b3ca-5796-4f5d-8245-61c7a28d958d
+# ╟─6fb78ef1-c54d-4256-ae7c-2ad76f0f7906
+# ╟─f551874c-8033-48c4-b20d-787072dd92ef
 # ╠═acae4567-5a77-439b-be3b-ab422c47a1e5
-# ╠═97ebb932-6ff2-46f1-84da-26affa0dd5d9
 # ╠═e26d05aa-1d5e-47af-9285-a35afb616e45
 # ╠═b1aedaf9-8b55-4583-b6a8-f688019a9021
 # ╠═b08bd2de-0222-4413-a03b-aa8fa256b926
-# ╠═62ebb223-130e-4c22-a967-dab914374dd6
 # ╠═8bbf893d-5f3e-491c-8723-52e605af7322
 # ╠═dd70856e-a9dc-47d3-941e-79bfa4d65565
 # ╠═ad1a4a0b-2750-48f2-9751-af448c84a208
+# ╠═9f210dcf-eb0c-4088-b5e5-f0a6610f54d9
 # ╟─9b2e008e-2243-4fc8-81c4-29f5f31d70c9
-# ╠═51995ba1-8ac3-444c-be53-95212904347c
+# ╟─51995ba1-8ac3-444c-be53-95212904347c
 # ╠═11e6db80-d008-43c2-805a-93174bd8e2ff
 # ╠═da36fef5-42f1-4a70-943c-e2b292456565
 # ╠═d428d47b-e171-479c-8d88-e18a4ab51ccd
-# ╠═3123b4c1-1dc8-4ecb-beb1-2599ac3265b1
-# ╠═b3e607b5-ee76-46fe-9af0-3e2f5dc7c2ff
-# ╠═248290dc-d84c-4f1a-9959-c95888c48d5c
+# ╟─3123b4c1-1dc8-4ecb-beb1-2599ac3265b1
+# ╟─b3e607b5-ee76-46fe-9af0-3e2f5dc7c2ff
+# ╟─248290dc-d84c-4f1a-9959-c95888c48d5c
 # ╠═ad5b0b3f-f423-4d43-8d3e-b861de19904e
-# ╠═cf9bea4e-f659-46c6-861b-42c1476bb3df
-# ╠═7f202ff4-0342-4e62-a57f-ec2f702db5d3
-# ╠═5266893d-fb62-40df-a90d-c84a08ecdfbe
-# ╠═edb982ce-9b84-4d61-bdc2-fb0794db7ae4
-# ╠═4e95640a-9111-43fc-b4c0-b7bae236f020
-# ╠═82119ec9-bc81-467d-a5d8-97165f525fbe
-# ╠═64feb896-d966-492d-9acf-020b32da2c54
 # ╠═28832ed8-3269-4391-b000-7b7538c3a1aa
-# ╠═d7b7e609-4058-4535-9824-1097e8ef2af3
-# ╠═58506658-4ef1-43e0-b3cb-a19808bf1315
-# ╠═db584b37-1aa3-48ea-ac4f-2c309cbe5d84
-# ╠═fabfe05d-062e-4f13-a429-af8264090995
-# ╠═e3b2da8f-ed0b-455b-a80e-ce2b2716c309
 # ╠═c273ae38-c4e9-492a-b502-c092f0b6b1c9
 # ╠═5f24d9f3-7920-4dc3-b907-02710669fdd4
 # ╠═9e901c15-d976-4855-94a6-a27c83a8f313
-# ╠═354e3fcc-6d2f-4306-8aa7-2c15c20d1de0
 # ╠═2c10f156-9f86-4246-8f74-27adc0879641
-# ╠═6e0edaa8-0681-4cc9-a114-07ba0b54bf9f
 # ╠═318c76c9-7502-4f2e-8ea7-bc94687028fb
 # ╠═e3fd0e82-8e3b-4ddf-8d3e-8485394ca503
 # ╠═263f7cdd-f50a-4a0c-8cf9-12cd2a7d00b4
 # ╠═0188d095-a88a-4129-8bc6-f3128bcecd26
-# ╠═9ba0b30f-8fdb-49a3-a179-53f7bfe03a62
-# ╠═d1fd22e3-93ba-4483-ad90-00389fe747db
+# ╠═6cfe38f4-0d1f-48f8-b236-982585109c04
 # ╠═3ef486bc-c0e3-460e-83c6-85456966dd9e
 # ╠═933ec83b-3fbf-4605-a349-2a193293c5b8
 # ╠═0fae950c-59c1-4a05-abe8-b54891e9b749
@@ -954,15 +686,4 @@ How can we predict or measure the expected steady state value as a measure of th
 # ╠═7fc16a05-d2df-405b-917f-8db0a5ccfff7
 # ╠═0afb022b-8192-4e17-9d86-38553c9af041
 # ╠═d867584c-e6cb-4dc0-9ce8-a343423555b1
-# ╠═e1094e57-7ec5-4c73-86dd-7696db75ce81
-# ╠═622b6b8a-3817-4019-aee8-fba6f0890656
-# ╠═5e6b7221-3c6c-483e-aa8b-b04f0b998106
-# ╠═ef002880-d873-43be-a4ec-7a84cfbbc6f3
-# ╠═3fbfd4fd-c280-45b1-aca7-2a8477c4216a
-# ╠═a9f9ed0d-1102-4df9-904d-b2233f6f3eb3
-# ╟─cad45de9-2b4d-4a74-ae62-413a9d1f29dd
-# ╠═80e35cb1-64c4-45c2-ae62-f881432b28c3
-# ╠═da129ba2-55cf-4097-8322-5ddea094aba7
-# ╟─59bcc767-65c9-4400-90a5-28f86c8243a4
-# ╟─b2fc0546-046b-443a-9736-5b9fe6e30bc0
-# ╠═f7a7df1b-d246-4cd5-ac46-7eee94c78037
+# ╠═b2fc0546-046b-443a-9736-5b9fe6e30bc0

@@ -130,6 +130,14 @@ begin
 	w0=10
 end
 
+# ╔═╡ 84b2e25b-b8cf-4afd-869a-86c3cc164b80
+begin 
+	using Random
+	Random.seed(10)
+	SNR = 2 # signal to noise ratio
+	gamma=mu/SNR; # noise term scalar
+end
+
 # ╔═╡ a1ebb468-fca5-4ff7-a74d-49e96bbae923
 F1, W1 = gradDescent(f_1,df_1,mu*2,[w0*sqrt(2)],epochs);
 
@@ -200,12 +208,6 @@ function gradDescentNoise(f,df,mu,w0,epochs=1,gamma=0,Wset=false)
 		end
 	end
 	return F,W,dW,N, grad
-end
-
-# ╔═╡ 84b2e25b-b8cf-4afd-869a-86c3cc164b80
-begin 
-	SNR = 2 # signal to noise ratio
-	gamma=mu/SNR; # noise term scalar
 end
 
 # ╔═╡ 4fb68f21-9fed-47bc-b2da-34f23cd4932f
@@ -373,179 +375,6 @@ We will show that these two different types of expansions have a different effec
 
 "
 
-# ╔═╡ cad45de9-2b4d-4a74-ae62-413a9d1f29dd
-md" # Hessian Projection"
-
-# ╔═╡ 4f7504e4-abd1-44e3-ad87-287cc522718b
-function computeHessianProj(dW,eig)
-	P = zeros(size(dW,1))
-	for i=1:size(dW,1)
-		P[i] = sum(dW[i,:].^2 .*eig)/sum(dW[i,:].^2)
-	end
-	return P
-end
-
-# ╔═╡ 58456c76-8ee6-417d-af5a-dc0254dc472a
-function TrH3_TrH2(eig)
-	return sum(eig.^3)/sum(eig.^2)
-end
-
-# ╔═╡ ed6b88e9-894e-4819-9a21-e5cbad0a0ff9
-function TrH_N(eig)
-	return sum(eig)/length(eig)
-end
-
-# ╔═╡ 80e35cb1-64c4-45c2-ae62-f881432b28c3
-function plotHessProj(dW,eig,t)
-	dwHdw = computeHessianProj(dW,eig)
-	plot(dwHdw,lw=3,label="proj")
-	plot!([TrH3_TrH2(eig)], seriestype=:hline,lw=3, label="TrH^3/TrH^2", linestyle=:dash)
-	plot!([TrH_N(eig)],seriestype=:hline,lw=3,label="TrH/N",linestyle=:dash)
-	plot!(title=t)
-end
-
-# ╔═╡ c69c5757-0465-4748-bf92-bab08dc26991
-function localTask(dW,N,eig,grad)
-	dWAll = dW.+N
-	return 1/2*computeHessianProj(dWAll,eig).*(sum(dWAll.^2;dims=2)./grad.^2)
-	# 1/2*computeHessianProj(dW21NSet.+N21Set,eig21).*(sum((dW21NSet.+N21Set).^2;dims=2).*grad21NSet.^2)
-	# return 1/2*computeHessianProj(dW,eig).*(dW.^2 ./grad.^2) + 1/2*computeHessianProj(N,eig).*(N.^2 ./grad.^2)
-end
-
-# ╔═╡ 59061c77-818b-4646-96ed-4eec3dd7bec3
-plotHessProj(dW1N,eig1,"1D dW Proj")
-
-# ╔═╡ f8e021b0-856e-460b-aec2-d41007e03c40
-plotHessProj(dW21N,eig21,"2D zero eig dW Proj")
-
-# ╔═╡ 06a64a29-00a5-4695-a9cc-68d64ca65311
-plotHessProj(dW22N,eig22,"2D non-zero eig dW Proj")
-
-# ╔═╡ 4b2ba9bb-dd48-4f19-9629-d3079761d455
-plotHessProj(N21,eig21,"2D noise Proj")
-
-# ╔═╡ da129ba2-55cf-4097-8322-5ddea094aba7
-function plotHessianParam(eigs,t="")
-	TrH3s = [TrH3_TrH2(eig) for eig in eigs]
-	TrHs = [TrH_N(eig) for eig in eigs]
-	p1 = plot(["1D","2D zero eig","2d non-zero eig"],TrH3s,seriestype=:bar,ylabel="Trace terms",title=t,label="TrH3_TrH2")
-	p2 = plot(["1D","2D zero eig","2d non-zero eig"],TrHs,seriestype=:bar,ylabel="Trace terms",title=t,label="TrH_N")
-	plot(p1, p2, layout = (2, 1), legend = false)
-	# ssP = plot(["1D","2D zero eig","2d non-zero eig"],ssA, seriestype=:bar, ylabel="ss value")
-	# plot(lsP, ssP, layout = (2, 1), legend = false)
-	# plot!(title=t)
-end
-
-# ╔═╡ 96560824-f6e3-4f53-9377-59afcb1578a1
-eigs=[eig1,eig21,eig22]
-
-# ╔═╡ 5077200c-ee07-4a2e-b837-d7022cff7e55
-plotHessianParam(eigs)
-
-# ╔═╡ 53c03f5b-51b8-4534-870b-1a8b15c2c677
-begin
-	lt1N = localTask(dW1N,N1,eig1,grad1N)
-	lt21N = localTask(dW21N,N21,eig21,grad21N)
-	lt22N = localTask(dW22N,N22,eig22,grad22N)
-end
-
-# ╔═╡ 86f58454-53cf-46a6-ba19-72c571e425f3
-begin
-	plot(grad1N,lw=3,label="1D")
-	plot!(grad21N,lw=3,label="2D zero eig")
-	plot!(grad22N,lw=3,linestyle=:dash,label="2D non-zero eig")
-	plot!(xlabel="epochs",ylabel="gradient norm squared")
-end
-
-# ╔═╡ a7b915d6-d620-4ade-91d3-52d1dfd1e85e
-begin
-	i = 100
-	plot(lt1N[1:i],lw=3,label="1D",yaxis=:log10)
-	plot!(lt21N[1:i],lw=3,label="2D zero eig")
-	plot!(lt22N[1:i],lw=3,label="2D non-zero eig",linestyle=:dash)
-	plot!(xlabel="epochs",ylabel="local task diff")
-end
-
-# ╔═╡ 59bcc767-65c9-4400-90a5-28f86c8243a4
-md"## Test near steady state"
-
-# ╔═╡ 1ddf3fce-6d48-4a9c-a40f-1c1ccacf6bb3
-begin
-	w0I = 0.1
-	epochsI = 100
-	muI = 0.05
-	gammaI = muI/2
-	F1NSet, W1NSet, dW1NSet, N1Set, grad1NSet = gradDescentNoise(f_1,df_1,mu,[w0I],epochsI,gammaI);
-	F21NSet,W21NSet,dW21NSet, N21Set,grad21NSet = gradDescentNoise(f_2_1,df_2_1,mu,[w0I,w0I],epochsI,gammaI);
-	F22NSet,W22NSet,dW22NSet, N22Set, grad22NSet = gradDescentNoise(f_2_2,df_2_2,mu,[w0I,w0I],epochsI,gammaI);
-end
-
-# ╔═╡ 98775bcd-69e3-4438-8935-b7ee23338543
-begin
-	p1SS= plot1DQuad(-w0I-w0I,w0I+w0I,f_1,W1NSet,F1NSet,:YlOrRd_9)
-	savefig("./Figures/1d_descentNoise_SS.pdf")
-	p1SS
-end
-
-# ╔═╡ 11fe02e3-8a8a-4479-9f83-d271d68cfb07
-begin
-	p21SS=plot2DQuad(-w0I-0.2, w0I+0.2, f_2_1 , W21NSet, F21NSet, true,:YlOrRd_9)
-	savefig("./Figures/21d_descentNoise_SS.pdf")
-	p21SS
-end
-
-# ╔═╡ 5c4c2d3c-e731-48ce-a188-23f5c358b658
-begin
-	p22SS=plot2DQuad(-w0I-0.2, w0I+0.2, f_2_2 , W22NSet, F22NSet, true,:YlOrRd_9)
-	savefig("./Figures/22d_descentNoise_SS.pdf")
-	p22SS
-end
-
-# ╔═╡ 0f29135b-075e-4e49-aa04-c8144d086c56
-begin
-	plot(F1NSet,lw=3,label="1D")
-	plot!([mean(F1NSet)],lw=4,label="1D mean",seriestype=:hline,linestyle=:dot)
-	plot!(F21NSet,lw=3,label="2D zero")
-	plot!([mean(F21NSet)],lw=4,label="2D zero mean",seriestype=:hline,linestyle=:dot)
-	plot!(F22NSet,lw=3,label="2D non-zero")
-	plot!([mean(F22NSet)],lw=4,label="2D non-zero mean",seriestype=:hline,linestyle=:dot)
-end
-
-# ╔═╡ 982b19e1-0f83-4d06-85b3-f5a2fba22700
-FsNSet = [F1NSet,F21NSet,F22NSet]
-
-# ╔═╡ 6e996e99-6ebf-4eca-82bf-77c2f2067b44
-ssNSet=[ss(i,epochsI-1) for i in FsNSet]
-
-# ╔═╡ b12785cc-4ee0-49e7-b2b4-431f5f68891b
-plot(["1D","2D zero eig","2d non-zero eig"],ssNSet, seriestype=:bar, ylabel="ss value")
-
-# ╔═╡ 0695c0f1-815d-45aa-b2f6-62bf53296ac1
-begin
-	lt1NSet = localTask(dW1NSet,N1Set,eig1,grad1NSet)
-	lt21NSet = localTask(dW21NSet,N21Set,eig21,grad21NSet)
-	lt22NSet = localTask(dW22NSet,N22Set,eig22,grad22NSet)
-end
-
-# ╔═╡ c7f80567-1f4b-48f9-ac8c-c0bf863db21e
-begin
-	plot(lt1NSet[1:i],lw=3,label="1D")
-	plot!([mean(lt1NSet[1:i])],lw=3,label="1D mean",seriestype=:hline,linestyle=:dot)
-	plot!(lt21NSet[1:i],lw=3,label="2D zero eig")
-	plot!([mean(lt21NSet[1:i])],lw=3,label="2D zero mean",seriestype=:hline,linestyle=:dot)
-	plot!(lt22NSet[1:i],lw=3,label="2D non-zero eig")
-	plot!([mean(lt22NSet[1:i])],lw=3,label="2D non-zero mean",seriestype=:hline,linestyle=:dot)
-	plot!(xlabel="epochs",ylabel="local task diff")
-end
-
-# ╔═╡ 360160f1-fba1-49a3-aa44-d3219d546226
-begin
-	plot(grad1NSet,lw=3,label="1D")
-	plot!(grad21NSet,lw=3,label="2D zero eig")
-	plot!(grad22NSet,lw=3,label="2D non-zero eig")
-	plot!(xlabel="epochs",ylabel="gradient norm squared")
-end
-
 # ╔═╡ b2fc0546-046b-443a-9736-5b9fe6e30bc0
 md"""
 We have shown how a network expansion can increase learning speed and steady-state value. Furthermore, we have compared two different expansions. One expansion doesn't increase learning performance. The difference is in the change in loss landscape. 
@@ -558,13 +387,13 @@ How can we predict or measure the expected steady state value as a measure of th
 
 
 # ╔═╡ Cell order:
-# ╟─ab9b01ff-c53f-40d6-817e-07e837762cfb
+# ╠═ab9b01ff-c53f-40d6-817e-07e837762cfb
 # ╠═e2ae0aad-422b-40b6-9c78-0d5b4b4d05b8
 # ╠═43619fa2-ea61-419d-b86e-c673301bc685
 # ╠═0d17a04e-0334-4ff1-8c9b-bad141346414
 # ╠═53b988f1-12a1-480c-ba3b-0078960deef6
 # ╟─38125f75-7244-4526-9a37-9bd1af217e72
-# ╟─cea61646-34cf-42b4-acf8-2226fde52146
+# ╠═cea61646-34cf-42b4-acf8-2226fde52146
 # ╠═247f31f4-dc34-11ec-0584-752289f2b41d
 # ╠═0e1a0954-c70d-473d-8cf4-7c07449befbf
 # ╠═18251608-65c1-414c-a9cd-734916c4b200
@@ -597,32 +426,4 @@ How can we predict or measure the expected steady state value as a measure of th
 # ╠═428dc44a-f818-4776-b792-540179ab3f47
 # ╠═a97bf7dd-1c5d-406c-9931-3b65445b016a
 # ╟─1ba560aa-1d96-4d0d-aac0-904cca5ed08d
-# ╟─cad45de9-2b4d-4a74-ae62-413a9d1f29dd
-# ╠═4f7504e4-abd1-44e3-ad87-287cc522718b
-# ╠═58456c76-8ee6-417d-af5a-dc0254dc472a
-# ╠═ed6b88e9-894e-4819-9a21-e5cbad0a0ff9
-# ╠═80e35cb1-64c4-45c2-ae62-f881432b28c3
-# ╠═c69c5757-0465-4748-bf92-bab08dc26991
-# ╠═59061c77-818b-4646-96ed-4eec3dd7bec3
-# ╠═f8e021b0-856e-460b-aec2-d41007e03c40
-# ╠═06a64a29-00a5-4695-a9cc-68d64ca65311
-# ╠═4b2ba9bb-dd48-4f19-9629-d3079761d455
-# ╠═da129ba2-55cf-4097-8322-5ddea094aba7
-# ╠═96560824-f6e3-4f53-9377-59afcb1578a1
-# ╠═5077200c-ee07-4a2e-b837-d7022cff7e55
-# ╠═53c03f5b-51b8-4534-870b-1a8b15c2c677
-# ╠═86f58454-53cf-46a6-ba19-72c571e425f3
-# ╠═a7b915d6-d620-4ade-91d3-52d1dfd1e85e
-# ╟─59bcc767-65c9-4400-90a5-28f86c8243a4
-# ╠═1ddf3fce-6d48-4a9c-a40f-1c1ccacf6bb3
-# ╠═98775bcd-69e3-4438-8935-b7ee23338543
-# ╠═11fe02e3-8a8a-4479-9f83-d271d68cfb07
-# ╠═5c4c2d3c-e731-48ce-a188-23f5c358b658
-# ╠═0f29135b-075e-4e49-aa04-c8144d086c56
-# ╠═982b19e1-0f83-4d06-85b3-f5a2fba22700
-# ╠═6e996e99-6ebf-4eca-82bf-77c2f2067b44
-# ╠═b12785cc-4ee0-49e7-b2b4-431f5f68891b
-# ╠═0695c0f1-815d-45aa-b2f6-62bf53296ac1
-# ╠═c7f80567-1f4b-48f9-ac8c-c0bf863db21e
-# ╠═360160f1-fba1-49a3-aa44-d3219d546226
 # ╟─b2fc0546-046b-443a-9736-5b9fe6e30bc0
