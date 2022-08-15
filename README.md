@@ -4,6 +4,10 @@ In this project we investigate how adding parameters to a loss changes the geome
 
 We consider the case of a quadratic loss function as it is mathematically tractable. 
 
+We include two notebooks `1Dto2D` is a Pluto notebook exploring two types of expansions from a 1D to 2D function. `1DtoND` explores learning performance for two types of quadratic function as we add parameters $N$. 
+
+We include a pdf `NotesOnQuadraticScaling` going over the mathematical analysis of the quadratic functions to evaluate learning performance. 
+
 ## Getting started
 
 The whole project is implemented in [Julia](https://docs.Wjulialang.org/en/v1/).  
