@@ -65,7 +65,7 @@ $f_{N1}:\mathbb{R}^N\to\mathbb{R}$ with
 
 $$f_{N1}(\mathbf{w}) =  \frac{\rho N}{2} w_1^2$$
 
-where $\mathbf{w}w = (w_1,w_2,\cdots,w_N)^T\in \mathbb{R}^N$.  
+where $N$ is the number of parameters, $\rho$ is scalar denoting the constant value of the average eigenvalue and $\mathbf{w} = (w_1,w_2,\cdots,w_N)^T\in \mathbb{R}^N$.  
 
 - **All equal eigenvalues:** the second type of function is 
 $f_{N2}:\mathbb{R}^N\to\mathbb{R}$ with 
@@ -85,17 +85,9 @@ begin
 end
 
 # ╔═╡ 38125f75-7244-4526-9a37-9bd1af217e72
-md"# Function definition"
-
-# ╔═╡ cea61646-34cf-42b4-acf8-2226fde52146
-md"We define a 1D quadratic function $f(x)=x^2$"
-
-# ╔═╡ 247f31f4-dc34-11ec-0584-752289f2b41d
-begin
-	f_1(w) = w^2 # 1d quadratic function
-	df_1(w) = [2w]
-	eig1 = [2]
-end
+md"# Function definition
+We define all the utility functions in the julia file `utils.jl`
+"
 
 # ╔═╡ fc03f090-0912-4875-a2a8-f663620d26d6
 md"## Gradient descent with noise
@@ -107,11 +99,11 @@ $$\delta w_t = -\mu \nabla_{w} F[w_t] + \gamma \epsilon$$
 
 where $$\epsilon$$ is the noise term (usually drawn from a random normal distribution).
 
-We run gradient descent with noise on the functions defined as explained above for different dimensions Ns. 
+We run gradient descent with noise on the functions defined above for different dimensions $N$. 
 
-We train with gradient descent for a range of $\mu$. $\gamma$ is chosen to satisfy  a constant ratio $SNR=\frac{\mu}{\gamma}$ accross dimensions and $\mu$.
-The range of $\mu$ used varies for the different $N$. Indeed the norm of the gradient $||\nabla F||$ grows with $N$. Hence for the same $\mu$, learning will be much faster for a larger $N$. Furthermore, for larger Ns training will diverge for smaller $\mu$.
-To make a 'fair' comparison of learning we decrease the range of $\mu$ tested with the number of dimensions $N$. 
+We train with gradient descent with noise for a range of $\mu$. $\gamma$ is chosen to satisfy  a constant ratio $SNR=\frac{\mu}{\gamma}$ accross dimensions and $\mu$.
+The range of $\mu$ used varies for the different $N$. Indeed the norm of the gradient $||\nabla F||$ grows with $N$. Hence for the same $\mu$, learning will be much faster for a larger $N$. Furthermore, for larger Ns training will stop convering for smaller $\mu$.
+To make a 'fair' comparison of learning we decrease the range of tested $\mu$ with the number of dimensions $N$. 
 
 We compute learning speed and steady state loss for the range N and $\mu$. Learning speed is computed from the trajectory of the loss during training with initial weight 
 $$\mathbf{w} = \frac{w0}{\sqrt{N}} (1, 1, ... ,1)^T$$, with $w0>1$ This choice of initial weight guarantees the initial value of the loss is equal for all dimensions.
@@ -206,7 +198,7 @@ begin
 end
 
 # ╔═╡ c73230f6-3cb1-4813-aa30-0b93506f2162
-md" We observe that as we increase $\mu$ for fixed $N$, the loss decreases faster. Increasing $N$ for a fixed $\mu$ can have the same effect. As expected for larger $N$, training will diverge for a smaller $\mu$.
+md" We observe that as we increase $\mu$ for fixed $N$, the loss decreases faster. Increasing $N$ for a fixed $\mu$ can have the same effect. As expected for larger $N$, training will stop convergin for a smaller $\mu$.
 
 We now look at the learning speed and steady state loss for different $N$ and $\mu$. "
 
@@ -216,15 +208,22 @@ begin
 	plot(musVar[int],lsAllM[int],lw=3,xlabel=L"\mu", ylabel="learning speed",label=lblN[:,int],palette=p)
 end
 
+# ╔═╡ 7b8ff523-98a1-4235-a46d-2be2418d1c49
+md"The learning speed is a quadratic fucntion in $\mu$. It increases until it reaches a maximum. The rate of increase and the value at which the maximum is reached depends on $N$. Indeed, the larger $N$ is, the faster the learning speed increases with $\mu$. It also seems that the maximal value of the learning speed is equal for different $N$."
+
 # ╔═╡ aaf2e829-4232-453a-914b-6c628406fc98
 begin
 	plot(musVar[int],ssAllM[int],lw=3,xlabel=L"\mu", ylabel="steady state value",label=lblN[:,int],palette=p)
 end
 
-# ╔═╡ cf9a8bdb-8788-4381-b847-27feb326c9a6
-md"We observe that for any $N$, increasing $\mu$ (while keeping small enough to assure learning convergence) increases learning speed and steady state loss. There is a trade-off between learning speed and accuracy (steady state value). 
+# ╔═╡ 36c748de-8fa7-4c4c-b259-e3eaa91af0e6
+md"The steady state loss increases with $\mu$, decreasing the learning precision. The rate of increase seems to be independent of $N$."
 
-Furthermore, the learning speed increase saturates. We can compute the optimal learning speed for each $N$, over all $\mu$. "
+# ╔═╡ cf9a8bdb-8788-4381-b847-27feb326c9a6
+md"We observe that for any $N$, increasing $\mu$ (while keeping small enough to assure learning convergence) increases learning speed and steady state loss. 
+If $\mu$ is kept constant during learning, there is a trade-off between learning speed and accuracy (steady state value). A larger learning step leads to larger learning speed but at the expense of worse learning accuracy. 
+
+We can compute the optimal learning speed for each $N$, over all $\mu$."
 
 # ╔═╡ 927847fb-8ecf-4248-a131-32dc4f845779
 begin
@@ -239,10 +238,11 @@ end
 plot(Ns,lsMax,lw=3,xlabel="N",ylabel="Max learning speed",legend=false)
 
 # ╔═╡ 70f57b49-2705-41d1-8a09-595785c05459
-md"The optimal learning speed is equal for all $N$. If we increase the number of parameters $N$, we can always find a $\mu$ such that the learning speed matches the original function-with fewer parameters.
+md"The optimal learning speed is equal for all $N$. If we increase the number of parameters $N$, we can always find a $\mu$ such that the learning speed matches the learning speed of the original function with fewer parameters.
 
-What about the steady state loss? From the plot above, we see that the minimal steady state loss will be achieved for the smallest $\mu$. We expect the minimal ss value over all $\mu$ to be relatively similar accross $N$.  
-However, what about the steady state loss for the $\mu$ that gives optimal learning speed? 
+What about the steady state loss? From the plot above, we see that the minimal steady state loss will be achieved for the smallest $\mu$. We expect the minimal ss value over all $\mu$ to be relatively similar accross $N$, it will mainly depend on the smallest $\mu$ tested for each $N$.  
+
+A measure that is more relevant is the steady state loss for the $\mu$ that gives optimal learning speed. If $\mu$ is set to optimise learning speed, what steady state loss can be attained? 
 "
 
 # ╔═╡ b8d10a77-6392-46c4-9513-3cdbf6cc07b9
@@ -253,7 +253,9 @@ begin
 end
 
 # ╔═╡ 13fb87f1-c65e-4319-a31e-2131c21d8597
-md" The steady state loss for the $\mu$ that leads to maximal learnign speed, decreases with $N$. We can plot the steady state value vs the learning speed as we vary $\mu$.
+md" The steady state loss for the $\mu$ that leads to maximal learning speed decreases with $N$. Indicating that that adding parameters can help optimise learning speed while maintaining steady state performance. 
+
+We can plot the steady state value vs the learning speed as we vary $\mu$.
 Each color represents a different $N$ and the opacity represents the value of $\mu$. $\mu$ increases with the opacity. 
 "
 
@@ -265,9 +267,12 @@ end
 
 # ╔═╡ 6fb78ef1-c54d-4256-ae7c-2ad76f0f7906
 md" 
-We observe that for each $N$, increasing $\mu$ increases both learning speed and steady state value. 
-However, for larger $N$, the steady state value increases slower with $\mu$. 
-Adding parameters allows for better learning performance. We can always find a $\mu$ for which the learning is faster (or same) and more precise (larger learning speed and smaller steady state loss).
+We observe that for each $N$, increasing $\mu$ increases both learning speed (ls) and steady state value (ss). 
+However, for larger $N$, the steady state value increases slower with $\mu$.
+This shifts the ss vs ls curves towards the y-axis as we increase N. 
+
+Adding parameters navigates the learning speed to steady state loss trade-off. 
+Adding parameters allows for better learning performance. We can always find a $\mu$ for which the learning is as dast or faster and more precise (larger learning speed and smaller steady state loss).
 "
 
 # ╔═╡ f551874c-8033-48c4-b20d-787072dd92ef
@@ -301,12 +306,18 @@ begin
 end
 
 # ╔═╡ b1aedaf9-8b55-4583-b6a8-f688019a9021
-plot(mus,lsAllNM,lw=3,xlabel=L"\mu", ylabel="learning speed",label=lblN,palette=p)
+plot(mus,lsAllNM[int],lw=3,xlabel=L"\mu", ylabel="learning speed",label=lblN[:,int],palette=p)
 
 # ╔═╡ b08bd2de-0222-4413-a03b-aa8fa256b926
 begin
 	plot(mus,ssAllNM[int],lw=3,xlabel=L"\mu", ylabel="steady state value",label=lblN[:,int],palette=p)
 end
+
+# ╔═╡ 17cbc4a5-0746-4845-b166-e7f603ab3a3f
+md"As for the previous type of function, the learning speed is a quadratic function in $\mu$ and a the steady state loss is a linear function in $\mu$. 
+However, the effect of adding parameters $N$ is the opposite in this case. The learning speed is indepent of $N$, and the steady state loss gets worse with $N$.
+
+We plot the max learnign speed and minimum steady state value as before." 
 
 # ╔═╡ 8bbf893d-5f3e-491c-8723-52e605af7322
 begin
@@ -335,13 +346,11 @@ md"""
 For this type of function, increasing $N$ is not beneficial to learning. 
 As in the previous case, for any fixed $N$ there is a trade-off between learning speed and steady state loss as $\mu$ varies. 
 
-The difference is that in this case, for larger $N$, the steady state value gets works. The slope of the steady state loss vs $\mu$ line increases with $N$.
+The difference is that in this case, for larger $N$, the steady state value gets worse. The slope of the steady state loss vs $\mu$ line increases with $N$.
 
-The scatter plot in this case, is the opposite as before. Indicating, that the larger $N$ is the worse the learning speed to steady state value is. 
+The scatter plot in this case, is the opposite as before. Indicating, that the larger $N$ is, the worse the learning speed to steady state value is. 
 
 We have considered two different types of quadratic functions. For each type, adding parameters has the opposite effect. 
-
-How does adding parameters in one case increase learning performance with gradient descent with noise? 
 """
 
 # ╔═╡ 51995ba1-8ac3-444c-be53-95212904347c
@@ -375,7 +384,7 @@ begin
 	# plot!(title="1 non-zero",legend=false)
 	plot!(twinx(),Ns,muMax,lw=3,axis=:right,color=:orange,legend=false,ylabel="", xlabel="")
 	plsMN = plot(Ns,lsMaxN,lw=3,xlabel="",ylabel="",legend=false,right_margin=30mm)
-	plot!(twinx(),Ns, muMaxN, lw=3, axis=:right, color=:orange,ylabel="learning step at max",legend=false, xlabel="", ylims=(0, muMaxN[1]+muMaxN[1]))
+	plot!(twinx(),Ns, muMaxN, lw=3, axis=:right, color=:orange, ylabel=L"$\mu$ at max", legend=false, xlabel="", ylims=(0, muMaxN[1]+muMaxN[1]), yguidefontcolor=:orange)
 	# plot!(title="all non-zero")
 	pssM =plot(Ns, ssAtLsMax, lw=3, legend=false, xlabel="N", ylabel="ss at max ls")
 	pssMN =plot(Ns, ssAtLsMaxN, lw=3, legend=false, xlabel="N", ylabel="")
@@ -393,7 +402,7 @@ md"## Theoretical analysis"
 
 # ╔═╡ ad5b0b3f-f423-4d43-8d3e-b861de19904e
 md"""
-From previous work we defined two quantities that determine learning speed and steady state loss when optimsing $F$ with gradient descent with noise with parameters $\mu$ and $\gamma$.  
+From previous work we defined two quantities that determine learning speed and steady state loss when optimising $F$ with gradient descent with noise with parameters $\mu$ and $\gamma$.  
 
 The expected learning speed over the dirstribution of $\mathbf{\epsilon}$ is 
 
@@ -401,13 +410,17 @@ $$\mathbb{E}[\nu_t] = -\frac{1}{F_t\delta t} (-\mu ||\nabla F||^2+\mu^2\nabla F^
 
 The expected local task difficulty over  dirstribution of $\mathbf{\epsilon}$ is 
 
-$$\mathbb{E}[\nu_t] = \mu \hat{\nabla F}^T\nabla^2F\hat{\nabla F}+\mathbb{E}[\frac{\gamma^2}{\mu} \frac{1}{||\nabla F||^2} \epsilon^T \nabla^2 F \epsilon])$$"""
+$$\mathbb{E}[\nu_t] = \mu \hat{\nabla F}^T\nabla^2F\hat{\nabla F}+\mathbb{E}[\frac{\gamma^2}{\mu} \frac{1}{||\nabla F||^2} \epsilon^T \nabla^2 F \epsilon])$$
+
+
+We compute these values for the different type functions. We expect them to match the simulation results above.
+"""
 
 # ╔═╡ 28832ed8-3269-4391-b000-7b7538c3a1aa
 md"## Single non-zero eigenvalue"
 
 # ╔═╡ c273ae38-c4e9-492a-b502-c092f0b6b1c9
-simsT = 10
+simsT = 10 # number of simulations to average over (to average noise term out)
 
 # ╔═╡ 5f24d9f3-7920-4dc3-b907-02710669fdd4
 begin 
@@ -432,12 +445,13 @@ end
 # ╔═╡ 9e901c15-d976-4855-94a6-a27c83a8f313
 begin
 	# labels for the new values of mu
-	lblMuT = string.(L"\gamma=",musT[1])
+	lblMuT = string.(L"\mu=",musT[1])
 	lblMuT = reshape(lblMuT,(1,length(lblMuT)))
 end
 
 # ╔═╡ 2c10f156-9f86-4246-8f74-27adc0879641
 begin
+	# theory values of ls and ss
 	lsTAll = [getVal(lp_zeroAll[i],1) for i=1:length(lp_zeroAll)]
 	ltAll = [getVal(lp_zeroAll[i],2) for i=1:length(lp_zeroAll)]
 end
@@ -452,18 +466,25 @@ end
 
 # ╔═╡ e3fd0e82-8e3b-4ddf-8d3e-8485394ca503
 # plot learning speed from theoretical value vs learning step for different fixed N
-plotLs(lsTAllM,Ns,musT[1],1,[1,10,20,30,40,50,60,70],"learning step","learning speed theory",lblN,2)
+plotLs(lsTAllM,Ns,musT[1],1,[1,10,20,30,40,50,60,70],L"\mu","learning speed theory",lblN,2)
 
-# ╔═╡ 263f7cdd-f50a-4a0c-8cf9-12cd2a7d00b4
-# plot learning speed from theoretical value vs learning step for different fixed N
-plotLs(lsTAllM,Ns,musT[1],1,[1,10,20,30,40,50,60,70,80,90,100],"learning step","learning speed theory",lblN,2)
+# ╔═╡ 3bd3e281-f94f-4ed7-bb87-f54d35edfc71
+md"We observe that the leaarning speed is a quadratic function of $\mu$. This plot matches the simulated plot above. 
+With the theoretical values, we obtain a decrease of the learning speed wiht larger $\mu$. This regime is not very relevant for the simulations as, for large $\mu$ learning can stop converging."
 
 # ╔═╡ 0188d095-a88a-4129-8bc6-f3128bcecd26
 # plot learning speed from theoretical value vs N
 plotLs(lsTAllM,Ns,musT[1],1,[1,10,15],"N","learning speed theory",lblMuT,1)
 
-# ╔═╡ 6cfe38f4-0d1f-48f8-b236-982585109c04
+# ╔═╡ d3405a47-08c5-48d4-827a-cae380bde621
+md"We plot the learning speed now as a function of $N$ for different $\mu$. As expected ls increases with N. We observe that this relationship is quadratic."
 
+# ╔═╡ 4836dddb-d914-40ba-8bb2-2aae5fda5ab9
+# plot learning speed from theoretical value vs learning step for different fixed N
+plotLs(ltAllM,Ns,musT[1],1,[1,10,20,30,40,50,60,70],L"\mu","local task difficulty",lblN,2)
+
+# ╔═╡ 8ff3a736-8002-4483-927a-4635ddebf9f5
+md" The local task difficulty (a proxy of steady state value) has the same dependence on $\mu$ and $N$ as observed with the simulations." 
 
 # ╔═╡ 3ef486bc-c0e3-460e-83c6-85456966dd9e
 @bind muIndex Slider(1:length(musT[1]))
@@ -471,9 +492,11 @@ plotLs(lsTAllM,Ns,musT[1],1,[1,10,15],"N","learning speed theory",lblMuT,1)
 # ╔═╡ 933ec83b-3fbf-4605-a349-2a193293c5b8
 begin 	
 	p1LsVsN = plotLs(lsTAllM,Ns,musT[1],1,[muIndex],"N","learning speed theory",lblMuT,1)
+	plot!(ylims=(0, maximum(lsTAllM[end])*1.1)) # fix y axis
 	# plot!(title="1 non-zero eig")
 	p2LsVsN = plotLs(ltAllM,Ns,musT[1],1,[muIndex],"N","local task diff",lblMuT,1)
 	plot!(left_margin=10mm)
+	plot!(ylims=(0, maximum(ltAllM[end])*1.1)) # fix y axis
 	# plot!(title="1 non-zero eig")
 	plot(p1LsVsN,p2LsVsN, layout=(2,1),legend=:topleft,size = (width, height))
 end
@@ -484,9 +507,11 @@ end
 # ╔═╡ b6b410ff-e05a-4331-8977-b832386723d4
 begin 	
 	p1LsVsM = plotLs(lsTAllM,Ns,musT[1],1,[NIndex],"learning step","learning speed theory",lblN,2)
+	plot!(ylims=(0, maximum(lsTAllM[end])*1.1)) # fix y axis
 	# plot!(title="1 non-zero eig")
 	p2LsVsM = plotLs(ltAllM,Ns,musT[1],1,[NIndex],"learning step","local task diff",lblN,2)
 	plot!(left_margin=10mm)
+	plot!(ylims=(0, maximum(ltAllM[end])*1.1)) # fix y axis
 	# plot!(title="1 non-zero eig")
 	plot(p1LsVsM,p2LsVsM, layout=(2,1),legend=:topleft,size = (width, height))
 end
@@ -517,11 +542,11 @@ begin
 end
 
 # ╔═╡ 9c824288-c1d4-413f-86d6-3213b2003ab0
-plotLs(lsTAllNM,Ns,mus,1,[1,10,100],"learning step","learning speed theory",lblN,2)
+plotLs(lsTAllNM,Ns,mus,1,[1,10,100],L"\mu","learning speed theory",lblN,2)
 
 # ╔═╡ f2458826-bcf0-4876-994f-cec6a0972a33
 # plot learning speed from theoretical value vs N
-plotLs(lsTAllNM,Ns,mus,1,[1,5,10],"Ns","learning speed theory",lblMu,1)
+plotLs(lsTAllNM,Ns,mus,1,[1,5,10],"N","learning speed theory",lblMu,1)
 
 # ╔═╡ bfab4844-7afe-49c7-ab63-fcc6bba030f0
 # plot learning speed from theoretical value vs learning step for different fixed N
@@ -541,8 +566,10 @@ md"""### Comparison of 2 types of quadratic functions"""
 begin 
 	p1Ls = plotLs(lsTAllM,Ns,musT[1],1,[muIndex1],"N","learning speed \n theory",lblMuT,1)
 	plot!(title="1 non-zero eig")
+	plot!(ylims=(0, maximum(lsTAllM[end])*1.1)) # fix y axis
 	p2Ls = plotLs(lsTAllNM,Ns,musT[1],1,[muIndex1],"N","learning speed \n theory",lblMuT,1)
 	plot!(title="all non-zero eig",left_margin=10mm)
+	plot!(ylims=(0, maximum(lsTAllNM[end])*1.1)) # fix y axis
 	plot(p1Ls,p2Ls, layout=(2,1),legend=:topleft,size=(width-200,height))
 end
 
@@ -550,8 +577,10 @@ end
 begin 
 	p1Lt = plotLs(ltAllM,Ns,musT[1],1,[muIndex1],"N","local task diff",lblMuT,1)
 	plot!(title="1 non-zero eig")
+	plot!(ylims=(0, maximum(ltAllM[end])*1.1)) # fix y axis
 	p2Lt = plotLs(ltAllNM,Ns,musT[1],1,[muIndex1],"N","local task diff",lblMuT,1)
 	plot!(title="all non-zero eig",left_margin=10mm)
+	plot!(ylims=(0, maximum(ltAllNM[end])*1.1)) # fix y axis
 	plot(p1Lt,p2Lt, layout=(2,1),legend=:topleft,size=(width-200,height))
 end
 
@@ -615,8 +644,6 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╠═7c5a27bc-2da7-4a4e-a957-7dbc80e0e556
 # ╠═2b7d5e2d-3b9b-42dc-bc08-3fd5106b7ebe
 # ╟─38125f75-7244-4526-9a37-9bd1af217e72
-# ╠═cea61646-34cf-42b4-acf8-2226fde52146
-# ╠═247f31f4-dc34-11ec-0584-752289f2b41d
 # ╠═edadadec-a987-4661-add6-f0094bb9934c
 # ╟─fc03f090-0912-4875-a2a8-f663620d26d6
 # ╠═230d6234-ce7e-41ea-9f24-fc2d5be65e1c
@@ -624,7 +651,7 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╟─473e8dc7-730a-4674-9879-bb48b783e3e0
 # ╠═c11ab6c9-c799-405d-b76b-0b194e22990f
 # ╠═2c3cdc13-dce0-4c43-8eaa-53ca08551e8e
-# ╠═acbc5a4b-36df-4580-a178-ec3467391eb6
+# ╟─acbc5a4b-36df-4580-a178-ec3467391eb6
 # ╟─bc611e16-be4a-4671-a05e-e9c61fb4fe56
 # ╠═26f62803-5633-4dc8-9ca1-893dd008fa2d
 # ╟─e3118f1b-d009-43f3-afd3-b10b8abb7d97
@@ -632,13 +659,15 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╠═a82f460d-a3ab-44f6-8e94-48b6ab923af4
 # ╟─c73230f6-3cb1-4813-aa30-0b93506f2162
 # ╠═14d09075-61fd-4c93-a75f-d3ba99e82f70
+# ╟─7b8ff523-98a1-4235-a46d-2be2418d1c49
 # ╠═aaf2e829-4232-453a-914b-6c628406fc98
+# ╠═36c748de-8fa7-4c4c-b259-e3eaa91af0e6
 # ╟─cf9a8bdb-8788-4381-b847-27feb326c9a6
 # ╠═927847fb-8ecf-4248-a131-32dc4f845779
 # ╠═a5fe4cfb-9a8c-4c15-8f00-f0d6242874b9
 # ╟─70f57b49-2705-41d1-8a09-595785c05459
 # ╠═b8d10a77-6392-46c4-9513-3cdbf6cc07b9
-# ╠═13fb87f1-c65e-4319-a31e-2131c21d8597
+# ╟─13fb87f1-c65e-4319-a31e-2131c21d8597
 # ╠═1de8b3ca-5796-4f5d-8245-61c7a28d958d
 # ╟─6fb78ef1-c54d-4256-ae7c-2ad76f0f7906
 # ╟─f551874c-8033-48c4-b20d-787072dd92ef
@@ -646,6 +675,7 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╠═e26d05aa-1d5e-47af-9285-a35afb616e45
 # ╠═b1aedaf9-8b55-4583-b6a8-f688019a9021
 # ╠═b08bd2de-0222-4413-a03b-aa8fa256b926
+# ╟─17cbc4a5-0746-4845-b166-e7f603ab3a3f
 # ╠═8bbf893d-5f3e-491c-8723-52e605af7322
 # ╠═dd70856e-a9dc-47d3-941e-79bfa4d65565
 # ╠═ad1a4a0b-2750-48f2-9751-af448c84a208
@@ -655,20 +685,22 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╠═11e6db80-d008-43c2-805a-93174bd8e2ff
 # ╠═da36fef5-42f1-4a70-943c-e2b292456565
 # ╠═d428d47b-e171-479c-8d88-e18a4ab51ccd
-# ╟─3123b4c1-1dc8-4ecb-beb1-2599ac3265b1
+# ╠═3123b4c1-1dc8-4ecb-beb1-2599ac3265b1
 # ╟─b3e607b5-ee76-46fe-9af0-3e2f5dc7c2ff
 # ╟─248290dc-d84c-4f1a-9959-c95888c48d5c
-# ╠═ad5b0b3f-f423-4d43-8d3e-b861de19904e
-# ╠═28832ed8-3269-4391-b000-7b7538c3a1aa
+# ╟─ad5b0b3f-f423-4d43-8d3e-b861de19904e
+# ╟─28832ed8-3269-4391-b000-7b7538c3a1aa
 # ╠═c273ae38-c4e9-492a-b502-c092f0b6b1c9
 # ╠═5f24d9f3-7920-4dc3-b907-02710669fdd4
 # ╠═9e901c15-d976-4855-94a6-a27c83a8f313
 # ╠═2c10f156-9f86-4246-8f74-27adc0879641
 # ╠═318c76c9-7502-4f2e-8ea7-bc94687028fb
 # ╠═e3fd0e82-8e3b-4ddf-8d3e-8485394ca503
-# ╠═263f7cdd-f50a-4a0c-8cf9-12cd2a7d00b4
+# ╟─3bd3e281-f94f-4ed7-bb87-f54d35edfc71
 # ╠═0188d095-a88a-4129-8bc6-f3128bcecd26
-# ╠═6cfe38f4-0d1f-48f8-b236-982585109c04
+# ╠═d3405a47-08c5-48d4-827a-cae380bde621
+# ╠═4836dddb-d914-40ba-8bb2-2aae5fda5ab9
+# ╟─8ff3a736-8002-4483-927a-4635ddebf9f5
 # ╠═3ef486bc-c0e3-460e-83c6-85456966dd9e
 # ╠═933ec83b-3fbf-4605-a349-2a193293c5b8
 # ╠═0fae950c-59c1-4a05-abe8-b54891e9b749
@@ -682,8 +714,8 @@ Both expansions maintain the average curvature. However, one expansion adds a ze
 # ╠═59b74b14-e9b6-4b7e-b729-6a7eb493dd6a
 # ╠═ea32abef-c3bb-4de4-bfa2-a58645b3dc9c
 # ╠═69e82e04-a556-4eb6-a6a7-266f636e40f0
-# ╠═17554255-18a7-4054-bd7a-3b993724f4f3
+# ╟─17554255-18a7-4054-bd7a-3b993724f4f3
 # ╠═7fc16a05-d2df-405b-917f-8db0a5ccfff7
 # ╠═0afb022b-8192-4e17-9d86-38553c9af041
 # ╠═d867584c-e6cb-4dc0-9ce8-a343423555b1
-# ╠═b2fc0546-046b-443a-9736-5b9fe6e30bc0
+# ╟─b2fc0546-046b-443a-9736-5b9fe6e30bc0
